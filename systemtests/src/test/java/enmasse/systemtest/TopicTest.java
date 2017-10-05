@@ -19,6 +19,7 @@ package enmasse.systemtest;
 import enmasse.systemtest.amqp.AmqpClient;
 import enmasse.systemtest.amqp.TopicTerminusFactory;
 
+import enmasse.systemtest.mqtt.MqttClient;
 import org.apache.qpid.proton.amqp.DescribedType;
 import org.apache.qpid.proton.amqp.Symbol;
 import org.apache.qpid.proton.amqp.messaging.*;
@@ -39,7 +40,7 @@ import static org.junit.Assert.assertTrue;
 
 public class TopicTest extends TestBase {
 
-    @Test
+//    @Test
     public void testMultipleSubscribers() throws Exception {
         Destination dest = Destination.topic("multiple-subtopic");
         setAddresses(dest);
@@ -68,6 +69,58 @@ public class TopicTest extends TestBase {
         assertThat(recvResults.get(5).get(1, TimeUnit.MINUTES).size(), is(msgs.size()));
     }
 
+    @Test
+    public void testSubscriptionRefused() throws Exception {
+
+        //AMQP
+        Destination dest = Destination.topic("selectorTopicAppProp");
+        setAddresses(dest);
+        Thread.sleep(30_000);
+
+        int msgsCount = 10;
+        List<Message> listOfMessages = new ArrayList<>();
+        for (int i = 0; i < msgsCount; i++) {
+            Message msg = Message.Factory.create();
+            msg.setAddress(dest.getAddress());
+            msg.setBody(new AmqpValue(dest.getAddress()));
+            msg.setSubject("subject");
+            listOfMessages.add(msg);
+        }
+
+        AmqpClient amqpClient = amqpClientFactory.createTopicClient();
+        Future<List<Message>> received = amqpClient.recvMessages(dest.getAddress(), 1, 2, TimeUnit.MINUTES);
+        try {
+            Thread.sleep(10_000);
+
+            Future<Integer> sent = amqpClient.sendMessages(dest.getAddress(), listOfMessages.toArray(new Message[listOfMessages.size()]));
+
+            assertThat(sent.get(1, TimeUnit.MINUTES), is(msgsCount));
+            assertThat(received.get(1, TimeUnit.MINUTES).size(), is(1));
+        } catch (Exception ex) {
+            throw ex;
+        } finally {
+            amqpClient.close();
+            setAddresses();
+        }
+
+        //MQTT
+        List<String> messages = Arrays.asList("foo", "bar", "baz");
+        List<Integer> publisherQos = Arrays.asList(2, 2, 2);
+
+        Destination mqttDest = Destination.topic("mytopic");
+        setAddresses(mqttDest);
+        Thread.sleep(60_000);
+
+        MqttClient mqttClient = mqttClientFactory.createClient();
+
+        Future<List<String>> recvResult = mqttClient.recvMessages(mqttDest.getAddress(), messages.size(), 1);
+        Future<Integer> sendResult = mqttClient.sendMessages(mqttDest.getAddress(), messages, publisherQos);
+
+        assertThat(sendResult.get(1, TimeUnit.MINUTES), is(messages.size()));
+        assertThat(recvResult.get(1, TimeUnit.MINUTES).size(), is(messages.size()));
+
+    }
+
 
     public void testInmemoryTopics() throws Exception {
         Destination t1 = Destination.topic("inMemoryTopic", Optional.of("inmemory"));
@@ -93,7 +146,7 @@ public class TopicTest extends TestBase {
         assertThat(recvMessages.get(1, TimeUnit.MINUTES).size(), is(msgs.size()));
     }
 
-    @Test
+//    @Test
     public void testMessageSelectorsAppProperty() throws Exception {
         Destination selTopic = Destination.topic("selectorTopicAppProp");
         String linkName = "linkSelectorTopicAppProp";
@@ -300,7 +353,7 @@ public class TopicTest extends TestBase {
         assertTrue(recvResults.get(1, TimeUnit.MINUTES).containsAll(batch2));
     }
 
-    @Test
+//    @Test
     public void testDurableMessageRoutedSubscription() throws Exception {
         Destination dest = Destination.topic("mrtopic");
         String address = "myaddress";
