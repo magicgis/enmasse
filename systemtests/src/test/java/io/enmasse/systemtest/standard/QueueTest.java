@@ -126,7 +126,7 @@ public class QueueTest extends TestBase {
         for (Destination address : addresses) {
             setAddresses(address, destExtra);
 
-            //runQueueTest(client, address, 1); //TODO! commented due to issue #429
+            runQueueTest(client, address, 1);
 
             deleteAddresses(address);
             Future<List<String>> response = getAddresses(Optional.empty());
