@@ -64,7 +64,7 @@ function teardown_test() {
 failure=0
 
 setup_test
-
+export PN_TRACE_FRM=1
 run_test || failure=$(($failure + 1))
 
 $CURDIR/collect_logs.sh $ARTIFACTS_DIR
