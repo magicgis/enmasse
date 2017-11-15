@@ -15,16 +15,13 @@
  */
 package io.enmasse.controller;
 
-import io.enmasse.config.AnnotationKeys;
 import io.enmasse.controller.common.*;
 import io.enmasse.address.model.*;
 import io.enmasse.address.model.types.Plan;
 import io.enmasse.address.model.types.TemplateConfig;
 import io.fabric8.kubernetes.api.model.HasMetadata;
 import io.fabric8.kubernetes.api.model.KubernetesList;
-import io.fabric8.kubernetes.api.model.Namespace;
 import io.fabric8.kubernetes.api.model.Service;
-import io.fabric8.kubernetes.client.KubernetesClientException;
 import io.fabric8.openshift.client.ParameterValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -58,7 +55,7 @@ public class ControllerHelper {
                 return;
             }
             log.info("Creating address space {}", addressSpace);
-            kubernetes.createNamespace(addressSpace.getName(), addressSpace.getNamespace());
+            kubernetes.createNamespace(addressSpace);
             kubernetes.addInfraViewRole(namespace, addressSpace.getNamespace());
             kubernetes.addSystemImagePullerPolicy(namespace, addressSpace.getNamespace());
             kubernetes.addAddressAdminRole(addressSpace.getNamespace());
@@ -187,23 +184,5 @@ public class ControllerHelper {
                 .collect(Collectors.toSet());
 
         return readyDeployments.containsAll(requiredDeployments);
-    }
-
-    public void retainAddressSpaces(Set<AddressSpace> desiredAddressSpaces) {
-        if (desiredAddressSpaces.size() == 1 && desiredAddressSpaces.iterator().next().getNamespace().equals(namespace)) {
-            return;
-        }
-        Set<String> addressSpaceIds = desiredAddressSpaces.stream().map(AddressSpace::getName).collect(Collectors.toSet());
-        for (Namespace namespace : kubernetes.listNamespaces()) {
-            String id = namespace.getMetadata().getAnnotations().get(AnnotationKeys.ADDRESS_SPACE);
-            if (!addressSpaceIds.contains(id)) {
-                try {
-                    log.info("Deleting address space {}", id);
-                    kubernetes.deleteNamespace(namespace.getMetadata().getName());
-                } catch (KubernetesClientException e) {
-                    log.info("Exception when deleting namespace (may already be in progress): " + e.getMessage());
-                }
-            }
-        }
     }
 }

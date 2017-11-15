@@ -104,7 +104,6 @@ public class Controller extends AbstractVerticle implements Watcher<AddressSpace
     public void resourcesUpdated(Set<AddressSpace> resources) throws Exception {
         log.debug("Check standard address spaces: " + resources);
         createAddressSpaces(resources);
-        retainAddressSpaces(resources);
 
         for (AddressSpace instance : addressSpaceApi.listAddressSpaces()) {
             AddressSpace.Builder mutableAddressSpace = new AddressSpace.Builder(instance);
@@ -119,10 +118,6 @@ public class Controller extends AbstractVerticle implements Watcher<AddressSpace
                     .collect(Collectors.toSet());
             controller.resourcesUpdated(filtered);
         }
-    }
-
-    private void retainAddressSpaces(Set<AddressSpace> desiredAddressSpaces) {
-        helper.retainAddressSpaces(desiredAddressSpaces);
     }
 
     private void createAddressSpaces(Set<AddressSpace> instances) {

@@ -16,9 +16,11 @@
 
 package io.enmasse.controller.common;
 
+import io.enmasse.address.model.AddressSpace;
 import io.enmasse.config.AnnotationKeys;
 import io.enmasse.config.LabelKeys;
 import io.enmasse.address.model.Endpoint;
+import io.enmasse.k8s.api.ConfigMapAddressSpaceApi;
 import io.fabric8.kubernetes.api.model.*;
 import io.fabric8.kubernetes.api.model.extensions.Deployment;
 import io.fabric8.kubernetes.api.model.extensions.DoneableIngress;
@@ -129,14 +131,21 @@ public class KubernetesHelper implements Kubernetes {
     }
 
     @Override
-    public void createNamespace(String name, String namespace) {
+    public void createNamespace(AddressSpace addressSpace) {
         client.namespaces().createNew()
                 .editOrNewMetadata()
-                .withName(namespace)
+                .withName(addressSpace.getNamespace())
                 .addToLabels("app", "enmasse")
                 .addToLabels(LabelKeys.TYPE, "address-space")
                 .addToLabels(LabelKeys.ENVIRONMENT, environment)
-                .addToAnnotations(AnnotationKeys.ADDRESS_SPACE, name)
+                .addToAnnotations(AnnotationKeys.ADDRESS_SPACE, addressSpace.getName())
+                // We're leaking the underlying serialized form of the AddressSpace which is not ideal.
+                .addNewOwnerReference()
+                    .withKind("ConfigMap")
+                    .withApiVersion("v1")
+                    .withName(ConfigMapAddressSpaceApi.getConfigMapName(addressSpace.getName()))
+                    .withUid(addressSpace.getUid())
+                .endOwnerReference()
                 .endMetadata()
                 .done();
     }
@@ -172,11 +181,6 @@ public class KubernetesHelper implements Kubernetes {
                     .endSubject()
                     .done();
         }
-    }
-
-    @Override
-    public void deleteNamespace(String namespace) {
-        client.namespaces().withName(namespace).delete();
     }
 
     @Override
@@ -274,15 +278,6 @@ public class KubernetesHelper implements Kubernetes {
     }
 
     @Override
-    public List<Namespace> listNamespaces() {
-        Map<String, String> labels = new LinkedHashMap<>();
-        labels.put(LabelKeys.APP, "enmasse");
-        labels.put(LabelKeys.TYPE, "address-space");
-        labels.put(LabelKeys.ENVIRONMENT, environment);
-        return client.namespaces().withLabels(labels).list().getItems();
-    }
-
-    @Override
     public List<Pod> listRouters() {
         return client.pods().withLabel(LabelKeys.CAPABILITY, "router").list().getItems();
     }
@@ -296,6 +291,7 @@ public class KubernetesHelper implements Kubernetes {
         OkHttpClient httpClient = client.adapt(OkHttpClient.class);
 
         HttpUrl url = HttpUrl.get(client.getOpenshiftUrl()).resolve(path);
+        //log.info("Performing {} on {} with body '{}'", method, path, body.encodePrettily());
         Request request = new Request.Builder()
                 .url(url)
                 .addHeader("Content-Type", "application/json")
